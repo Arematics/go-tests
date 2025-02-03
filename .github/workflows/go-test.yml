@@ -1,0 +1,72 @@
+name: Go Test
+
+# Trigger the workflow on every push and pull request
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+
+  setup:
+    uses: Arematics/workflows/.github/workflows/go-setup.yml@master
+    secrets:
+      GH_PRIVATE_REPOSITORY: ${{ secrets.GH_PRIVATE_REPOSITORY }}
+
+  verify:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure Go for private modules
+        run: |
+          go env -w GOPRIVATE=github.com/Arematics/* 
+          go env -w GONOSUMDB=github.com/Arematics/*
+
+      - name: Configure git to use token for private repositories
+        run: |
+          git config --global url."https://${{ secrets.GH_PRIVATE_REPOSITORY }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Download workspace artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace
+          path: ./
+
+      - name: Validate Dependencies
+        run: go mod tidy
+
+      - name: Verify Code
+        run: go vet ./...
+
+  test:
+    needs: [setup]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure Go for private modules
+        run: |
+          go env -w GOPRIVATE=github.com/Arematics/* 
+          go env -w GONOSUMDB=github.com/Arematics/*
+
+      - name: Configure git to use token for private repositories
+        run: |
+          git config --global url."https://${{ secrets.GH_PRIVATE_REPOSITORY }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Download workspace artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace
+          path: ./
+
+      - name: Ensure all files are executable
+        run: |
+          chmod -R +x .
+
+      - name: Get dependencies
+        run: go mod tidy
+
+      - name: Run tests
+        run: go test -v  ./...
