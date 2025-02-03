@@ -2,7 +2,7 @@
   <img src="https://arematics.com/assets/banner/full_banner_transparent.png" width="380" height="144" alt="Arematics Banner">
 </p>
 
-# Godog Test Initialization Utility
+# Test Initialization Utility
 
 This repository provides a utility function to streamline the initialization and execution of [Godog](https://github.com/cucumber/godog) BDD (Behavior Driven Development) tests in Go projects. It introduces a reusable `InitializeTests` function to handle boilerplate code for running feature tests with dynamic steps and paths.
 
