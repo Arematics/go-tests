@@ -1,0 +1,76 @@
+name: Release
+permissions:
+  contents: write
+  packages: write
+on:
+  workflow_dispatch:
+    inputs:
+      previous_tag:
+        description: 'Previous Tag (e.g., v1.0.0)'
+        required: false
+      new_tag:
+        description: 'New Tag (e.g., v1.0.1)'
+        required: true
+
+jobs:
+  library_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository.
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
+
+      # Step 2: Set up Go environment.
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23.2
+
+      - name: Configure git to use token for private repositories
+        run: |
+          git config --global url."https://${{ secrets.GH_PRIVATE_REPOSITORY }}@github.com/".insteadOf "https://github.com/"
+
+      # Step 3: Verify the module and run tests.
+      - name: Validate Dependencies
+        run: go mod tidy
+
+      - name: Verify Code
+        run: go vet ./...
+
+      # Step 4: Generate the release notes.
+      - name: Generate Release Notes
+        id: generate_release_notes
+        run: |
+          echo "## What's Changed" > release_notes.md
+          if [ -z "${{ github.event.inputs.previous_tag }}" ]; then
+            git log --oneline --no-merges --decorate=short > release_notes.md
+          else
+            git log --oneline --no-merges --decorate=short ${{ github.event.inputs.previous_tag }}..HEAD >> release_notes.md
+          fi
+          cat release_notes.md
+
+      # Step 5: Check if the new tag is a pre-release.
+      - name: Check if tag is prerelease
+        id: check_prerelease
+        run: |
+          if [[ "${{ github.event.inputs.new_tag }}" == *-beta* || "${{ github.event.inputs.new_tag }}" == *-alpha* ]]; then
+            echo "prerelease=true" >> $GITHUB_ENV
+          else
+            echo "prerelease=false" >> $GITHUB_ENV
+          fi
+
+      # Step 6: Create a GitHub release.
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.new_tag }}
+          release_name: Release ${{ github.event.inputs.new_tag }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ env.prerelease }}
