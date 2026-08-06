@@ -12,9 +12,17 @@ on:
 jobs:
 
   setup:
+    # The shared go-setup workflow moved to a GitHub App (app_id + owner +
+    # app_private_key) and this call still handed it GH_PRIVATE_REPOSITORY and
+    # no inputs. A workflow_call whose arguments do not match its callee never
+    # starts — GitHub reports startup_failure with no jobs and no log to read.
+    # Same call as go-orm and go-uuidv7 make.
     uses: Arematics/workflows/.github/workflows/go-setup.yml@master
+    with:
+      app_id: ${{ vars.AREMATICS_APP_ID }}
+      owner: Arematics
     secrets:
-      GH_PRIVATE_REPOSITORY: ${{ secrets.GH_PRIVATE_REPOSITORY }}
+      app_private_key: ${{ secrets.AREMATICS_APP_PRIVATE_KEY }}
 
   verify:
     needs: [setup]
