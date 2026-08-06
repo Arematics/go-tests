@@ -26,7 +26,7 @@ on:
 
 jobs:
   release:
-    uses: Arematics/workflows/.github/workflows/go-library-release.yml@master
+    uses: Arematics/workflows/.github/workflows/go-library-release.yml@57b66e322fbf656e2bc087427879ea0c65d04511 # v1.0.0
     with:
       previous_tag: ${{ github.event.inputs.previous_tag }}
       new_tag: ${{ github.event.inputs.new_tag }}
