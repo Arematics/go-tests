@@ -9,50 +9,35 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: read
+
+# No shared setup job, and no credentials.
+#
+# This repo went through Arematics/workflows' go-setup, which mints a GitHub App
+# token so a build can fetch private Arematics modules. It has none: go.mod
+# declares `module github.com/Arematics/go-tests` and not one Arematics
+# dependency. The whole apparatus — the app token, the .netrc, the GOPRIVATE
+# settings, the workspace artifact — was serving a need that does not exist
+# here, and it was doing it badly: the shared workflow moved to the GitHub App
+# months ago, this repo kept passing the old GH_PRIVATE_REPOSITORY secret, and a
+# workflow_call whose arguments do not match its callee never starts. The last
+# green run was 2026-07-21; every push since produced a red X with no jobs and
+# no log, and nobody could have read what was wrong.
+#
+# A pipeline with no secret in it cannot leak one.
 jobs:
-
-  setup:
-    # The shared go-setup workflow moved to a GitHub App (app_id + owner +
-    # app_private_key) and this call still handed it GH_PRIVATE_REPOSITORY and
-    # no inputs. A workflow_call whose arguments do not match its callee never
-    # starts — GitHub reports startup_failure with no jobs and no log to read.
-    # Same call as go-orm and go-uuidv7 make.
-    uses: Arematics/workflows/.github/workflows/go-setup.yml@master
-    with:
-      app_id: ${{ vars.AREMATICS_APP_ID }}
-      owner: Arematics
-    secrets:
-      app_private_key: ${{ secrets.AREMATICS_APP_PRIVATE_KEY }}
-
   verify:
-    needs: [setup]
     runs-on: ubuntu-latest
     steps:
-      - name: Configure Go for private modules
-        run: |
-          go env -w GOPRIVATE=github.com/Arematics/* 
-          go env -w GONOSUMDB=github.com/Arematics/*
-
-      # The token comes in through env and is read as a shell variable. Written
-      # as ${{ secrets.GH_PRIVATE_REPOSITORY }} it would be pasted into the
-      # script text before the shell starts, which can surface it in `set -x`
-      # traces, process listings and error output (githubactions:S7636).
-      - name: Configure git to use token for private repositories
-        env:
-          GH_PRIVATE_REPOSITORY: ${{ secrets.GH_PRIVATE_REPOSITORY }}
-        run: |
-          git config --global url."https://${GH_PRIVATE_REPOSITORY}@github.com/".insteadOf "https://github.com/"
-
-      - name: Download workspace artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          name: workspace
-          path: ./
+          go-version-file: go.mod
 
       # `go mod download`, not `go mod tidy`. tidy rewrites go.mod and go.sum
       # from whatever the module proxy serves at that moment; download resolves
-      # against the checked-in go.sum, which is the lock file this repo already
-      # has. Sonar flags the difference as githubactions:S8545.
+      # against the checked-in go.sum, which is the lock file this repo has.
       - name: Validate Dependencies
         run: go mod download
 
@@ -60,33 +45,12 @@ jobs:
         run: go vet ./...
 
   test:
-    needs: [setup]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Configure Go for private modules
-        run: |
-          go env -w GOPRIVATE=github.com/Arematics/* 
-          go env -w GONOSUMDB=github.com/Arematics/*
-
-      - name: Configure git to use token for private repositories
-        env:
-          GH_PRIVATE_REPOSITORY: ${{ secrets.GH_PRIVATE_REPOSITORY }}
-        run: |
-          git config --global url."https://${GH_PRIVATE_REPOSITORY}@github.com/".insteadOf "https://github.com/"
-
-      - name: Download workspace artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          name: workspace
-          path: ./
-
-      - name: Ensure all files are executable
-        run: |
-          chmod -R +x .
-
-      - name: Get dependencies
-        run: go mod download
+          go-version-file: go.mod
 
       - name: Run tests
-        run: go test -v  ./...
+        run: go test -v ./...
