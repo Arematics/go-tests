@@ -3,13 +3,30 @@ name: Release
 permissions:
   contents: write
   packages: write
+
+# Manual, and the same shape as go-orm's.
+#
+# This used to fire on every successful "Go Test" on master and call the shared
+# release workflow with no arguments, while `new_tag` is a required input there.
+# A workflow_call missing a required input never starts, so every green test run
+# was followed by a red Release with no jobs and no log to open.
+#
+# Making it work automatically would mean cutting a version tag on every push,
+# which is a decision rather than a repair — and this repo publishes the
+# `combiner` binary that every other pipeline installs by pinned version.
 on:
-  workflow_run:
-    workflows: ["Go Test"]
-    branches: [master]
-    types:
-      - completed
+  workflow_dispatch:
+    inputs:
+      previous_tag:
+        description: 'Previous Tag (e.g., v1.0.0)'
+        required: false
+      new_tag:
+        description: 'New Tag (e.g., v1.0.1)'
+        required: true
+
 jobs:
   release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     uses: Arematics/workflows/.github/workflows/go-library-release.yml@master
+    with:
+      previous_tag: ${{ github.event.inputs.previous_tag }}
+      new_tag: ${{ github.event.inputs.new_tag }}
