@@ -25,18 +25,28 @@ jobs:
           go env -w GOPRIVATE=github.com/Arematics/* 
           go env -w GONOSUMDB=github.com/Arematics/*
 
+      # The token comes in through env and is read as a shell variable. Written
+      # as ${{ secrets.GH_PRIVATE_REPOSITORY }} it would be pasted into the
+      # script text before the shell starts, which can surface it in `set -x`
+      # traces, process listings and error output (githubactions:S7636).
       - name: Configure git to use token for private repositories
+        env:
+          GH_PRIVATE_REPOSITORY: ${{ secrets.GH_PRIVATE_REPOSITORY }}
         run: |
-          git config --global url."https://${{ secrets.GH_PRIVATE_REPOSITORY }}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://${GH_PRIVATE_REPOSITORY}@github.com/".insteadOf "https://github.com/"
 
       - name: Download workspace artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: workspace
           path: ./
 
+      # `go mod download`, not `go mod tidy`. tidy rewrites go.mod and go.sum
+      # from whatever the module proxy serves at that moment; download resolves
+      # against the checked-in go.sum, which is the lock file this repo already
+      # has. Sonar flags the difference as githubactions:S8545.
       - name: Validate Dependencies
-        run: go mod tidy
+        run: go mod download
 
       - name: Verify Code
         run: go vet ./...
@@ -52,11 +62,13 @@ jobs:
           go env -w GONOSUMDB=github.com/Arematics/*
 
       - name: Configure git to use token for private repositories
+        env:
+          GH_PRIVATE_REPOSITORY: ${{ secrets.GH_PRIVATE_REPOSITORY }}
         run: |
-          git config --global url."https://${{ secrets.GH_PRIVATE_REPOSITORY }}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://${GH_PRIVATE_REPOSITORY}@github.com/".insteadOf "https://github.com/"
 
       - name: Download workspace artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: workspace
           path: ./
@@ -66,7 +78,7 @@ jobs:
           chmod -R +x .
 
       - name: Get dependencies
-        run: go mod tidy
+        run: go mod download
 
       - name: Run tests
         run: go test -v  ./...
